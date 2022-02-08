@@ -1,3 +1,5 @@
 package by.ld1995.coinbasetest.models
 
-data class Item(val price: String, val size: String)
+import java.math.BigDecimal
+
+data class Item(val price: BigDecimal, val size: BigDecimal)

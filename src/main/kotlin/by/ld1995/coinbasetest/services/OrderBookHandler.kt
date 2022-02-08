@@ -9,17 +9,15 @@ import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.*
 import java.math.BigDecimal
-import java.util.*
 
 @Component
 class OrderBookHandler(
     private val eventPublisher: ApplicationEventPublisher,
     private val messageHandler: MessageHandler,
+    private val orderBookStorage: OrderBookStorage
 ) : WebSocketHandler {
 
-    private val asks = TreeMap<BigDecimal, BigDecimal>()
-    private val bids = TreeMap<BigDecimal, BigDecimal>(Collections.reverseOrder())
-    private val snapshotBuffer = StringBuffer()
+    private var snapshotBuffer = StringBuffer()
 
     private val logger = LoggerFactory.getLogger(OrderBookHandler::class.java)
 
@@ -34,20 +32,22 @@ class OrderBookHandler(
             if (messageHandler.isUpdate(payload)) {
                 val map: Map<OrderSide, List<UpdateItem>> = messageHandler.getUpdate(payload)
                     .changes
-                    .filter { it.price > BigDecimal.ZERO.setScale(8) }
+                    .filter { BigDecimal.ZERO.setScale(8) > it.size }
                     .groupBy { it.side }
-                map.getOrDefault(OrderSide.ASK, emptyList()).forEach { asks[it.price] = it.size }
-                map.getOrDefault(OrderSide.BID, emptyList()).forEach { bids[it.price] = it.size }
+                map.getOrDefault(OrderSide.ASK, emptyList()).forEach { orderBookStorage.addAsk(it.price, it.size) }
+                map.getOrDefault(OrderSide.BID, emptyList()).forEach { orderBookStorage.addBid(it.price, it.size) }
             }
         } else {
             if (Strings.isNotEmpty(snapshotBuffer) && payload.endsWith("}")) {
-                val snapshot = messageHandler.getSnapshot(snapshotBuffer.append(payload).toString())
+                val snapshotJson = snapshotBuffer.append(payload).toString()
+                snapshotBuffer = StringBuffer()
+                val snapshot = messageHandler.getSnapshot(snapshotJson)
                 snapshot.asks
-                    .forEach { asks[it.price] = it.size}
+                    .forEach { orderBookStorage.addAsk(it.price, it.size) }
                 snapshot.bids
-                    .forEach { bids[it.price] = it.size}
+                    .forEach { orderBookStorage.addBid(it.price, it.size) }
             } else {
-                    snapshotBuffer.append(payload)
+                snapshotBuffer.append(payload)
             }
         }
     }

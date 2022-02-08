@@ -16,7 +16,7 @@ class MessageHandler(
     private val objectMapper: ObjectMapper
 ) {
 
-    fun isValidJson(payload: String): Boolean = payload.startsWith("}") && payload.endsWith("}")
+    fun isValidJson(payload: String): Boolean = payload.startsWith("{") && payload.endsWith("}")
 
     fun isSupportedType(payload: String): Boolean {
         val map: Map<String, String> = getData(payload)
