@@ -28,6 +28,8 @@ class WSClient(
     }
 
     override fun onApplicationEvent(event: WSDisconnectedEvent) {
-        openConnection()
+        if (1011 != event.code) {
+            openConnection()
+        }
     }
 }

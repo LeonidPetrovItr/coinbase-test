@@ -15,7 +15,7 @@ data class Snapshot(
     val bids: ArrayList<SnapshotItem>
 )
 
-@JsonDeserialize(using = UpdateItemDeserializer::class)
+@JsonDeserialize(using = SnapshotItemDeserializer::class)
 data class SnapshotItem(val price: BigDecimal, val size: BigDecimal)
 
 class SnapshotItemDeserializer : StdDeserializer<SnapshotItem>(SnapshotItem::class.java) {
@@ -29,7 +29,7 @@ class SnapshotItemDeserializer : StdDeserializer<SnapshotItem>(SnapshotItem::cla
     }
 
     companion object {
-        const val PRICE = 1
-        const val SIZE = 2
+        const val PRICE = 0
+        const val SIZE = 1
     }
 }

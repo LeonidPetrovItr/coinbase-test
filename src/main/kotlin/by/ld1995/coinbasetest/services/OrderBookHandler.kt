@@ -1,18 +1,25 @@
 package by.ld1995.coinbasetest.services
 
+import by.ld1995.coinbasetest.models.OrderSide
 import by.ld1995.coinbasetest.models.events.WSDisconnectedEvent
-import by.ld1995.coinbasetest.models.response.Snapshot
-import by.ld1995.coinbasetest.models.response.Update
+import by.ld1995.coinbasetest.models.response.UpdateItem
+import org.apache.logging.log4j.util.Strings
 import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.*
+import java.math.BigDecimal
+import java.util.*
 
 @Component
 class OrderBookHandler(
     private val eventPublisher: ApplicationEventPublisher,
     private val messageHandler: MessageHandler,
 ) : WebSocketHandler {
+
+    private val asks = TreeMap<BigDecimal, BigDecimal>()
+    private val bids = TreeMap<BigDecimal, BigDecimal>(Collections.reverseOrder())
+    private val snapshotBuffer = StringBuffer()
 
     private val logger = LoggerFactory.getLogger(OrderBookHandler::class.java)
 
@@ -21,17 +28,26 @@ class OrderBookHandler(
         session.sendMessage(TextMessage("{\"type\":\"subscribe\",\"channels\":[{\"name\":\"level2\",\"product_ids\":[\"BTC-USD\"]},{\"name\":\"heartbeat\",\"product_ids\":[\"BTC-USD\"]}]}"))
     }
 
-
     override fun handleMessage(session: WebSocketSession, message: WebSocketMessage<*>) {
-        logger.info("Message ${message.payload}")
         val payload = message.payload as String
-        if (messageHandler.isSupportedType(payload)) {
-            if (messageHandler.isSnapshot(payload)) {
-                // collect to one string
-                val snapshot: Snapshot = messageHandler.getSnapshot(payload)
-            }
+        if (messageHandler.isValidJson(payload)) {
             if (messageHandler.isUpdate(payload)) {
-                val update: Update = messageHandler.getUpdate(payload)
+                val map: Map<OrderSide, List<UpdateItem>> = messageHandler.getUpdate(payload)
+                    .changes
+                    .filter { it.price > BigDecimal.ZERO.setScale(8) }
+                    .groupBy { it.side }
+                map.getOrDefault(OrderSide.ASK, emptyList()).forEach { asks[it.price] = it.size }
+                map.getOrDefault(OrderSide.BID, emptyList()).forEach { bids[it.price] = it.size }
+            }
+        } else {
+            if (Strings.isNotEmpty(snapshotBuffer) && payload.endsWith("}")) {
+                val snapshot = messageHandler.getSnapshot(snapshotBuffer.append(payload).toString())
+                snapshot.asks
+                    .forEach { asks[it.price] = it.size}
+                snapshot.bids
+                    .forEach { bids[it.price] = it.size}
+            } else {
+                    snapshotBuffer.append(payload)
             }
         }
     }
